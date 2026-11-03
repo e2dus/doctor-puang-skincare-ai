@@ -1,0 +1,313 @@
+# Puang - AI Skincare Assistant: LLM Codebase Guide
+
+## 🎯 Project Overview
+
+This is a Flutter mobile application that provides AI-powered skincare recommendations.
+It follows **Clean Architecture** with **Feature-based organization**.
+
+## 📁 Directory Structure
+
+```
+lib/
+├── main.dart                    # App entry point with ProviderScope
+├── api_keys.dart               # API keys (DO NOT commit to git)
+│
+├── core/                        # Shared utilities across all features
+│   ├── constants/
+│   │   └── api_constants.dart  # API endpoints
+│   ├── error/
+│   │   ├── exceptions.dart     # Data layer exceptions
+│   │   └── failures.dart       # Domain layer failures
+│   ├── network/
+│   │   └── api_client.dart     # Dio HTTP client setup
+│   ├── theme/
+│   │   ├── app_colors.dart     # Color constants
+│   │   ├── app_text_styles.dart # Text style constants
+│   │   └── app_theme.dart      # ThemeData configuration
+│   └── usecases/
+│       └── usecase.dart        # Base UseCase class
+│
+└── features/                    # Feature modules
+    ├── auth/                   # Authentication feature
+    ├── chat/                   # AI Chatbot feature
+    ├── product/                # Product management feature
+    ├── dashboard/              # Dashboard feature
+    ├── skincare/               # Skincare calendar feature
+    ├── settings/               # Settings feature
+    └── main/                   # Main navigation feature
+```
+
+## 🏗️ Architecture Layers
+
+### Layer Dependencies (IMPORTANT)
+```
+Presentation → Domain → Data
+      ↓           ↓
+  ViewModels   UseCases
+      ↓           ↓
+    Pages    Repositories
+```
+
+**Rules:**
+- ✅ Presentation can depend on Domain
+- ✅ Data can depend on Domain
+- ❌ Domain CANNOT depend on Data or Presentation
+- ❌ Presentation CANNOT directly depend on Data
+
+### Data Layer
+Location: `features/{feature}/data/`
+
+| Folder | Purpose | Contains |
+|--------|---------|----------|
+| `datasources/` | Data sources | Remote (API) and Local (Storage) data sources |
+| `models/` | Data models | DTOs with `toJson()`, `fromJson()`, `toEntity()` |
+| `repositories/` | Implementations | Concrete repository implementations |
+
+### Domain Layer
+Location: `features/{feature}/domain/`
+
+| Folder | Purpose | Contains |
+|--------|---------|----------|
+| `entities/` | Business objects | Pure Dart classes, no framework dependencies |
+| `repositories/` | Contracts | Abstract repository interfaces |
+| `usecases/` | Business logic | Single-responsibility use cases |
+
+### Presentation Layer
+Location: `features/{feature}/presentation/`
+
+| Folder | Purpose | Contains |
+|--------|---------|----------|
+| `pages/` | Screens | Full page widgets (StatefulWidget/ConsumerWidget) |
+| `viewmodels/` | State management | Riverpod providers (StateNotifier pattern) |
+| `widgets/` | UI components | Reusable widget components |
+
+## 🔧 State Management: Riverpod 2.x
+
+**IMPORTANT:** This project uses Riverpod 2.x with `StateNotifier` pattern.
+Do NOT use Riverpod 3.x `Notifier` pattern.
+
+### StateNotifier Pattern
+```dart
+// State class
+class MyState {
+  final bool isLoading;
+  final String? data;
+  final String? error;
+  
+  const MyState({
+    this.isLoading = false,
+    this.data,
+    this.error,
+  });
+  
+  MyState copyWith({bool? isLoading, String? data, String? error}) {
+    return MyState(
+      isLoading: isLoading ?? this.isLoading,
+      data: data ?? this.data,
+      error: error ?? this.error,
+    );
+  }
+}
+
+// Notifier class
+class MyNotifier extends StateNotifier<MyState> {
+  MyNotifier() : super(const MyState());
+  
+  Future<void> fetchData() async {
+    state = state.copyWith(isLoading: true);
+    try {
+      final data = await _repository.getData();
+      state = state.copyWith(isLoading: false, data: data);
+    } catch (e) {
+      state = state.copyWith(isLoading: false, error: e.toString());
+    }
+  }
+}
+
+// Provider
+final myProvider = StateNotifierProvider<MyNotifier, MyState>(
+  (ref) => MyNotifier(),
+);
+```
+
+### Family Provider (with parameters)
+```dart
+final itemProvider = StateNotifierProvider.family<ItemNotifier, ItemState, String>(
+  (ref, itemId) => ItemNotifier(itemId),
+);
+
+// Usage
+ref.watch(itemProvider('item_123'));
+```
+
+## 📝 File Naming Conventions
+
+| Type | Pattern | Example |
+|------|---------|---------|
+| Page | `{name}_page.dart` | `login_page.dart` |
+| Widget | `{name}.dart` or `{name}_widget.dart` | `message_bubble.dart` |
+| ViewModel | `{name}_viewmodel.dart` or `{name}_provider.dart` | `auth_viewmodel.dart` |
+| Model | `{name}_model.dart` | `user_model.dart` |
+| Entity | `{name}_entity.dart` | `user_entity.dart` |
+| Repository Interface | `{name}_repository.dart` | `auth_repository.dart` |
+| Repository Impl | `{name}_repository_impl.dart` | `auth_repository_impl.dart` |
+| UseCase | `{action}_{name}_usecase.dart` | `sign_in_usecase.dart` |
+| DataSource | `{name}_{type}_datasource.dart` | `auth_remote_datasource.dart` |
+
+## 🗺️ Feature Details
+
+### Auth Feature (`features/auth/`)
+- **Purpose:** User authentication (login, signup, logout)
+- **Key Files:**
+  - `presentation/viewmodels/auth_viewmodel.dart` - Auth state management
+  - `presentation/pages/login_page.dart` - Login UI
+  - `domain/usecases/sign_in_usecase.dart` - Login business logic
+
+### Chat Feature (`features/chat/`)
+- **Purpose:** AI chatbot for skincare recommendations
+- **Key Providers:**
+  - `survey_message_provider.dart` - Handles skin type survey flow
+  - `recommend_message_provider.dart` - AI product recommendations
+  - `budget_message_provider.dart` - Budget-based recommendations
+  - `survey_data_provider.dart` - Stores user's survey answers
+- **Key Pages:**
+  - `chat_bot_page.dart` - Main chatbot with 3 options
+  - `chat_survey_page.dart` - Skin type survey
+  - `chat_find_skincare_page.dart` - AI recommendations
+  - `chat_budget_routine_page.dart` - Budget recommendations
+
+### Product Feature (`features/product/`)
+- **Purpose:** Product listing, cart, likes, blocks
+- **Key ViewModels:**
+  - `ranking_viewmodel.dart` - Product rankings
+  - `cart_viewmodel.dart` - Shopping cart
+  - `liked_products_viewmodel.dart` - Liked products
+  - `blocked_products_viewmodel.dart` - Blocked products
+
+### Dashboard Feature (`features/dashboard/`)
+- **Purpose:** User statistics and skincare scores
+- **Key Widgets:**
+  - `skin_care_gauge_widget.dart` - Score gauge visualization
+  - `friends_score_list.dart` - Friends comparison
+  - `daily_tips_carousel.dart` - Daily skincare tips
+
+### Main Feature (`features/main/`)
+- **Purpose:** Main navigation structure
+- **Key File:** `main_page.dart` - BottomNavigationBar with IndexedStack
+
+## 🔌 API Integration
+
+### API Constants
+Location: `core/constants/api_constants.dart`
+
+```dart
+class ApiConstants {
+  static const String baseUrl = 'http://43.203.250.50:8080';
+  static const String openRouterBaseUrl = 'https://openrouter.ai/api/v1';
+  
+  // Endpoints
+  static const String loginEndpoint = '/auth/sign-in';
+  static const String signupEndpoint = '/auth/sign-up';
+  // ... more endpoints
+}
+```
+
+### HTTP Client
+Uses **Dio** for HTTP requests with interceptors for:
+- Authentication token injection
+- Error handling
+- Logging
+
+## 🎨 Theming
+
+### Colors (`core/theme/app_colors.dart`)
+```dart
+class AppColors {
+  static const Color primary = Color(0xFFE8DCC4);    // Cream/Beige
+  static const Color secondary = Color(0xFF265D31);  // Green
+  // ... more colors
+}
+```
+
+### Usage in Widgets
+```dart
+Theme.of(context).colorScheme.primary  // Primary color
+Theme.of(context).colorScheme.secondary // Secondary color
+AppColors.primary // Direct access
+```
+
+## ⚠️ Common Pitfalls
+
+1. **Import Style:** Always use package imports
+   ```dart
+   // ✅ Correct
+   import 'package:mobileprogramming_groupproject_2025/features/auth/...';
+   
+   // ❌ Wrong
+   import '../../../features/auth/...';
+   ```
+
+2. **Riverpod Version:** Use 2.x StateNotifier, not 3.x Notifier
+
+3. **API Keys:** Never commit `api_keys.dart` with real keys
+
+4. **Widget State:** Use `ConsumerWidget` or `ConsumerStatefulWidget` for Riverpod
+
+## 🔄 Common Operations
+
+### Adding a New Screen
+1. Create page in `features/{feature}/presentation/pages/{name}_page.dart`
+2. Create viewmodel if needed in `viewmodels/{name}_viewmodel.dart`
+3. Add to navigation in `main_page.dart` if it's a main tab
+
+### Adding a New API Call
+1. Add endpoint to `core/constants/api_constants.dart`
+2. Create/update datasource in `data/datasources/`
+3. Update repository implementation
+4. Create/update use case
+5. Call from viewmodel
+
+### Adding a New Provider
+```dart
+// Simple provider
+final myProvider = StateNotifierProvider<MyNotifier, MyState>(
+  (ref) => MyNotifier(),
+);
+
+// Family provider (with parameter)
+final myProvider = StateNotifierProvider.family<MyNotifier, MyState, String>(
+  (ref, id) => MyNotifier(id),
+);
+```
+
+## 📱 Navigation Structure
+
+```
+MainPage (BottomNavigationBar)
+├── Index 0: HomePage (Product listing)
+├── Index 1: ChatBotPage (AI Chatbot)
+│   ├── → ChatSurveyPage (Survey flow)
+│   ├── → ChatFindSkincarePage (AI recommendations)
+│   └── → ChatBudgetRoutinePage (Budget recommendations)
+├── Index 2: CalendarPage (Skincare calendar)
+├── Index 3: DashboardPage (Statistics)
+└── Index 4: SettingPage (Settings)
+```
+
+## 🧪 Testing Guidance
+
+When testing, focus on:
+1. **ViewModels:** Test state transitions
+2. **UseCases:** Test business logic
+3. **Repositories:** Test data flow
+4. **Widgets:** Test UI rendering
+
+## 📋 Checklist for Code Changes
+
+- [ ] Follow Clean Architecture layer separation
+- [ ] Use proper file naming conventions
+- [ ] Use StateNotifier pattern for state management
+- [ ] Use package imports (not relative)
+- [ ] Update relevant providers when adding new features
+- [ ] Keep business logic in UseCases/ViewModels, not in Pages
+
