@@ -168,7 +168,7 @@ flutter pub get
 
 ### 3. API 키 설정
 
-`lib/api_keys.dart` 파일에 API 키를 설정하세요.
+`--dart-define=OPENROUTER_API_KEY=...` 옵션으로 API 키를 주입하세요. API 키는 저장소에 입력하거나 커밋하지 마세요.
 
 ### 4. 앱 실행
 
